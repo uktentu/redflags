@@ -164,7 +164,7 @@ async function generateImage(quoteText) {
   const nameX = avatarX + AVATAR_SIZE + AVATAR_GAP;
   const nameY = avatarY + AVATAR_SIZE * 0.35;
 
-  c.font = `bold ${NAME_FONT_SIZE}px Montserrat`;
+  c.font = `bold ${NAME_FONT_SIZE}px "Montserrat"`;
   c.fillStyle = '#ffffff';
   c.textBaseline = 'middle';
   c.fillText(DISPLAY_NAME, nameX, nameY);
@@ -173,12 +173,12 @@ async function generateImage(quoteText) {
   drawVerifiedBadge(c, nameX + nameWidth + 8, nameY, 11);
 
   const handleY = avatarY + AVATAR_SIZE * 0.7;
-  c.font = `${HANDLE_FONT_SIZE}px Montserrat`;
+  c.font = `${HANDLE_FONT_SIZE}px "Montserrat"`;
   c.fillStyle = '#71767b';
   c.textBaseline = 'middle';
   c.fillText(HANDLE, nameX, handleY);
 
-  c.font = `${QUOTE_FONT_SIZE}px Montserrat`;
+  c.font = `${QUOTE_FONT_SIZE}px "Montserrat"`;
   c.fillStyle = '#e7e9ea';
   c.textBaseline = 'top';
 
