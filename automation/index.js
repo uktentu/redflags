@@ -37,7 +37,10 @@ you'd be serving life...
 and
 I'd still volunteer as your cellmate.`;
 
-  const fallbackModels = ["gemini-2.5-flash", "gemini-3-flash", "gemini-1.5-flash", "gemini-1.5-pro"];
+  const fallbackModels = ['gemini-3.1-flash-lite',  // 15 RPM, 500 RPD
+    'gemini-2.5-flash-lite',  // 10 RPM, 20 RPD
+    'gemini-2.5-flash',       // 5 RPM, 20 RPD
+    'gemini-3-flash'];
   let text = null;
 
   for (const modelName of fallbackModels) {
@@ -46,7 +49,7 @@ I'd still volunteer as your cellmate.`;
       const result = await model.generateContent(prompt);
       text = result.response.text().trim();
       console.log(`✅ Success with model: ${modelName}`);
-      break; 
+      break;
     } catch (err) {
       console.warn(`⚡ Model ${modelName} failed/overloaded. Trying next model...`);
     }
@@ -119,7 +122,7 @@ async function generateImage(quoteText) {
   console.log("🎨 Rendering image on Canvas...");
   const canvas = createCanvas(W, H);
   const c = canvas.getContext('2d');
-  
+
   // Background
   c.fillStyle = '#000000';
   c.fillRect(0, 0, W, H);
@@ -199,28 +202,113 @@ async function generateImage(quoteText) {
 }
 
 // ==========================================
-// 3. INSTAGRAM PUBLISHING (Private API)
+// 3. INSTAGRAM PUBLISHING (Puppeteer Headless)
 // ==========================================
-async function postToInstagram(imageBuffer, caption) {
-  console.log("📱 Logging into Instagram via Mobile App API...");
+async function postToInstagramPuppeteer(imagePath, caption) {
+  console.log("📱 Launching Invisible Browser (Puppeteer Chrome)...");
   
-  const ig = new IgApiClient();
-  ig.state.generateDevice(IG_USERNAME);
-  
-  // Optional: Add artificial startup delay to seem more human
-  await new Promise(resolve => setTimeout(resolve, 2000));
-  
-  await ig.account.login(IG_USERNAME, IG_PASSWORD);
-  console.log("✅ Successfully logged in!");
+  const puppeteer = require('puppeteer-extra');
+  const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+  puppeteer.use(StealthPlugin());
 
-  console.log("📤 Uploading photo...");
-  const publishResult = await ig.publish.photo({
-    file: imageBuffer,
-    caption: caption,
+  const browser = await puppeteer.launch({ 
+    headless: "new", // Run in background completely invisible
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-notifications'] 
   });
+  
+  const page = await browser.newPage();
+  await page.setViewport({ width: 1280, height: 800 });
+  
+  try {
+    console.log("⏳ Navigating to Instagram Login...");
+    await page.goto('https://www.instagram.com/accounts/login/', { waitUntil: 'networkidle2' });
+    
+    // Wait for username input box to appear
+    await page.waitForSelector('input[name="username"]', { timeout: 15000 });
+    
+    // Emulate human typing speed
+    await page.type('input[name="username"]', IG_USERNAME, { delay: 60 });
+    await page.type('input[name="password"]', IG_PASSWORD, { delay: 60 });
+    
+    console.log("👆 Clicking Login...");
+    await page.click('button[type="submit"]');
+    
+    // Wait to clear the login wall
+    await new Promise(resolve => setTimeout(resolve, 8000));
+    
+    // Hard refresh back to homepage to bypass 
+    // "Save Password" or "Turn on Notifications" modal popups
+    console.log("🔄 Bypassing potential popups...");
+    await page.goto('https://www.instagram.com/', { waitUntil: 'networkidle2' });
+    console.log("✅ Logged in successfully!");
 
-  console.log(`🎉 Successfully published! Post ID: ${publishResult.media.id}`);
-  return publishResult;
+    // Click "Create" (The plus button)
+    console.log("➕ Clicking Create Post...");
+    
+    // Using evaluate for robust text-based element targeting (bypasses random CSS classes)
+    const createClicked = await page.evaluate(() => {
+        const spans = Array.from(document.querySelectorAll('span'));
+        const createSpan = spans.find(el => el.innerText === 'Create');
+        if (createSpan) {
+            createSpan.click();
+            return true;
+        }
+        return false;
+    });
+    
+    if (!createClicked) {
+      // Fallback to searching for the SVG icon
+      const svgCreate = await page.$('svg[aria-label="New post"]');
+      if (svgCreate) await svgCreate.click();
+    }
+    
+    await new Promise(resolve => setTimeout(resolve, 3000));
+    
+    console.log("📤 Pushing image into browser...");
+    const fileInput = await page.$('input[type="file"]');
+    if (!fileInput) throw new Error("Could not find file upload box in Instagram GUI.");
+    await fileInput.uploadFile(path.resolve(__dirname, imagePath));
+    
+    // Helper to click localized text buttons (Next / Share)
+    const clickButtonText = async (text) => {
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        await page.evaluate((targetText) => {
+            const btns = Array.from(document.querySelectorAll('div[role="button"]'));
+            const target = btns.find(b => b.innerText && b.innerText.includes(targetText));
+            if (target) target.click();
+        }, text);
+    };
+
+    console.log("⏳ Bypassing crop screen...");
+    await clickButtonText("Next");
+    
+    console.log("⏳ Bypassing filter screen...");
+    await clickButtonText("Next");
+    
+    console.log("📝 Typing caption...");
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    const captionBox = await page.$('div[aria-label="Write a caption..."]');
+    if (captionBox) {
+        await captionBox.type(caption, { delay: 20 });
+    } else {
+        console.warn("Could not find caption box, posting without caption.");
+    }
+    
+    console.log("🚀 Pressing Share!");
+    await clickButtonText("Share");
+    
+    // Add extra time to ensure upload finishes fully before Chrome shuts down
+    console.log("⏳ Waiting 15 seconds for upload animation to finish...");
+    await new Promise(resolve => setTimeout(resolve, 15000));
+    
+    console.log("🎉 Successfully published via Automaton Chromium!");
+
+  } catch (error) {
+    console.error("❌ Puppeteer Error:", error.message);
+    throw error;
+  } finally {
+    await browser.close();
+  }
 }
 
 // ==========================================
@@ -231,29 +319,29 @@ async function main() {
     if (!GEMINI_API_KEY || !IG_USERNAME || !IG_PASSWORD) {
       throw new Error("Missing required environment variables. Check your GitHub Secrets.");
     }
-    
+
     // 1. Generate Quote
     const quote = await generateQuote();
-    
+
     // 2. Render Image
     const imageBuffer = await generateImage(quote);
-    
-    // Save locally so you can at least see the image when IG login fails!
+
+    // Save locally so Puppeteer can upload it
     fs.writeFileSync('temp_post.png', imageBuffer);
     console.log("💾 Saved image locally to temp_post.png");
-    
-    // 3. Publish directly to Instagram (No hosting needed!)
+
+    // 3. Publish directly to Instagram (Puppeteer Bot)
     const caption = `🚩\n\n#redflags #dating #toxic #relatable`;
-    await postToInstagram(imageBuffer, caption);
-    
+    await postToInstagramPuppeteer('temp_post.png', caption);
+
     console.log("===========================");
     console.log("🥳 AUTOMATION COMPLETED!");
     console.log("===========================");
-    
+
   } catch (error) {
     console.error("❌ ERROR EXECUTING AUTOMATION:", error.message);
     if (error.response && error.response.body) {
-       console.error("Instagram API Error Details:", error.response.body);
+      console.error("Instagram API Error Details:", error.response.body);
     }
     process.exit(1);
   }
