@@ -122,6 +122,10 @@ async function generateImage(quoteText) {
   const canvas = createCanvas(W, H);
   const c = canvas.getContext('2d');
 
+  // Register the newly downloaded fonts
+  registerFont(path.join(__dirname, '../assets/Montserrat-Bold.ttf'), { family: 'Montserrat', weight: 'bold' });
+  registerFont(path.join(__dirname, '../assets/Montserrat-Regular.ttf'), { family: 'Montserrat' });
+
   // Background
   c.fillStyle = '#000000';
   c.fillRect(0, 0, W, H);
@@ -160,7 +164,7 @@ async function generateImage(quoteText) {
   const nameX = avatarX + AVATAR_SIZE + AVATAR_GAP;
   const nameY = avatarY + AVATAR_SIZE * 0.35;
 
-  c.font = `bold ${NAME_FONT_SIZE}px sans-serif`;
+  c.font = `bold ${NAME_FONT_SIZE}px Montserrat`;
   c.fillStyle = '#ffffff';
   c.textBaseline = 'middle';
   c.fillText(DISPLAY_NAME, nameX, nameY);
@@ -169,12 +173,12 @@ async function generateImage(quoteText) {
   drawVerifiedBadge(c, nameX + nameWidth + 8, nameY, 11);
 
   const handleY = avatarY + AVATAR_SIZE * 0.7;
-  c.font = `${HANDLE_FONT_SIZE}px sans-serif`;
+  c.font = `${HANDLE_FONT_SIZE}px Montserrat`;
   c.fillStyle = '#71767b';
   c.textBaseline = 'middle';
   c.fillText(HANDLE, nameX, handleY);
 
-  c.font = `${QUOTE_FONT_SIZE}px sans-serif`;
+  c.font = `${QUOTE_FONT_SIZE}px Montserrat`;
   c.fillStyle = '#e7e9ea';
   c.textBaseline = 'top';
 
@@ -211,7 +215,7 @@ async function postToInstagramPuppeteer(imagePath, caption) {
   puppeteer.use(StealthPlugin());
 
   const browser = await puppeteer.launch({
-    headless: "new", // Run in background completely invisible
+    headless: "new", // Back to invisible mode for Github Actions
     args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-notifications']
   });
 
@@ -222,12 +226,16 @@ async function postToInstagramPuppeteer(imagePath, caption) {
     console.log("⏳ Navigating to Instagram Login...");
     await page.goto('https://www.instagram.com/accounts/login/', { waitUntil: 'networkidle2' });
 
-    // Wait for username input box to appear
-    await page.waitForSelector('input[name="username"]', { timeout: 15000 });
+    // Instagram has started hiding standard DOM names to block bots. 
+    // We will generically grab ALL text boxes (Username & Password) 
+    await page.waitForSelector('input', { timeout: 15000 });
+    const inputs = await page.$$('input');
+    
+    if (inputs.length < 2) throw new Error("Could not find the standard 2 login inputs!");
 
     // Emulate human typing speed
-    await page.type('input[name="username"]', IG_USERNAME, { delay: 60 });
-    await page.type('input[name="password"]', IG_PASSWORD, { delay: 60 });
+    await inputs[0].type(IG_USERNAME, { delay: 65 });
+    await inputs[1].type(IG_PASSWORD, { delay: 65 });
 
     console.log("👆 Clicking Login...");
     await page.click('button[type="submit"]');
@@ -304,6 +312,10 @@ async function postToInstagramPuppeteer(imagePath, caption) {
 
   } catch (error) {
     console.error("❌ Puppeteer Error:", error.message);
+    try {
+        await page.screenshot({ path: 'puppeteer_error.png' });
+        console.log("📸 Saved error screenshot to puppeteer_error.png");
+    } catch(e) {}
     throw error;
   } finally {
     await browser.close();
