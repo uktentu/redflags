@@ -26,7 +26,7 @@ const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
 // ==========================================
 async function generateQuote() {
   console.log("🤖 Generating new quote via Gemini...");
-  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
   const prompt = `You are the admin of a witty, edgy, borderline toxic Instagram account called @redflags.exe. 
 Generate a short 3-to-4 line witty quote about modern dating, red flags, or being slightly toxic but relatable.
