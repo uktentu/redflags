@@ -226,19 +226,28 @@ async function postToInstagramPuppeteer(imagePath, caption) {
     console.log("⏳ Navigating to Instagram Login...");
     await page.goto('https://www.instagram.com/accounts/login/', { waitUntil: 'networkidle2' });
 
-    // Instagram has started hiding standard DOM names to block bots. 
-    // We will generically grab ALL text boxes (Username & Password) 
+    // Wait for inputs
     await page.waitForSelector('input', { timeout: 15000 });
     const inputs = await page.$$('input');
     
     if (inputs.length < 2) throw new Error("Could not find the standard 2 login inputs!");
 
-    // Emulate human typing speed
     await inputs[0].type(IG_USERNAME, { delay: 65 });
     await inputs[1].type(IG_PASSWORD, { delay: 65 });
 
     console.log("👆 Clicking Login...");
-    await page.click('button[type="submit"]');
+    // Find any element that perfectly says "Log in" and click it
+    const clicked = await page.evaluate(() => {
+        const els = [...document.querySelectorAll('button, div[role="button"], div')];
+        const target = els.find(el => el.innerText && el.innerText.trim().toLowerCase() === 'log in');
+        if (target) {
+            target.click();
+            return true;
+        }
+        return false;
+    });
+
+    if (!clicked) throw new Error("Could not find any 'Log in' button text on screen.");
 
     // Wait to clear the login wall
     await new Promise(resolve => setTimeout(resolve, 8000));
