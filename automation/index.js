@@ -26,7 +26,6 @@ const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
 // ==========================================
 async function generateQuote() {
   console.log("🤖 Generating new quote via Gemini...");
-  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
   const prompt = `You are the admin of a witty, edgy, borderline toxic Instagram account called @redflags.exe. 
 Generate a short 3-to-4 line witty quote about modern dating, red flags, or being slightly toxic but relatable.
@@ -38,8 +37,25 @@ you'd be serving life...
 and
 I'd still volunteer as your cellmate.`;
 
-  const result = await model.generateContent(prompt);
-  const text = result.response.text().trim();
+  const fallbackModels = ["gemini-2.5-flash", "gemini-3-flash", "gemini-1.5-flash", "gemini-1.5-pro"];
+  let text = null;
+
+  for (const modelName of fallbackModels) {
+    try {
+      const model = genAI.getGenerativeModel({ model: modelName });
+      const result = await model.generateContent(prompt);
+      text = result.response.text().trim();
+      console.log(`✅ Success with model: ${modelName}`);
+      break; 
+    } catch (err) {
+      console.warn(`⚡ Model ${modelName} failed/overloaded. Trying next model...`);
+    }
+  }
+
+  if (!text) {
+    throw new Error("All Gemini models are currently overloaded. Please try again later.");
+  }
+
   console.log("\n--- Generated Quote ---");
   console.log(text);
   console.log("-----------------------\n");
@@ -222,8 +238,9 @@ async function main() {
     // 2. Render Image
     const imageBuffer = await generateImage(quote);
     
-    // Optional: Save locally for debugging in non-CI environment
-    // fs.writeFileSync('temp_post.png', imageBuffer);
+    // Save locally so you can at least see the image when IG login fails!
+    fs.writeFileSync('temp_post.png', imageBuffer);
+    console.log("💾 Saved image locally to temp_post.png");
     
     // 3. Publish directly to Instagram (No hosting needed!)
     const caption = `🚩\n\n#redflags #dating #toxic #relatable`;
