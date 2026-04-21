@@ -29,6 +29,6 @@ jobs:
         working-directory: ./automation
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          IMGBB_API_KEY: ${{ secrets.IMGBB_API_KEY }}
-          MAKE_WEBHOOK_URL: ${{ secrets.MAKE_WEBHOOK_URL }}
+          IG_USERNAME: ${{ secrets.IG_USERNAME }}
+          IG_PASSWORD: ${{ secrets.IG_PASSWORD }}
         run: node index.js

@@ -3,15 +3,14 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { createCanvas, loadImage, registerFont } = require('canvas');
 const fs = require('fs');
 const path = require('path');
-const axios = require('axios');
-const FormData = require('form-data');
+const { IgApiClient } = require('instagram-private-api');
 
 // ==========================================
 // CONFIGURATION
 // ==========================================
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const IMGBB_API_KEY = process.env.IMGBB_API_KEY;
-const MAKE_WEBHOOK_URL = process.env.MAKE_WEBHOOK_URL;
+const IG_USERNAME = process.env.IG_USERNAME;
+const IG_PASSWORD = process.env.IG_PASSWORD;
 
 const DISPLAY_NAME = 'redflags.exe';
 const HANDLE = '@redflags.exe';
@@ -184,38 +183,28 @@ async function generateImage(quoteText) {
 }
 
 // ==========================================
-// 3. IMAGE HOSTING (ImgBB)
+// 3. INSTAGRAM PUBLISHING (Private API)
 // ==========================================
-async function uploadToImgBB(buffer) {
-  console.log("☁️ Uploading image to ImgBB...");
-  const form = new FormData();
-  form.append('image', buffer.toString('base64'));
+async function postToInstagram(imageBuffer, caption) {
+  console.log("📱 Logging into Instagram via Mobile App API...");
   
-  const response = await axios.post(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, form, {
-    headers: form.getHeaders()
+  const ig = new IgApiClient();
+  ig.state.generateDevice(IG_USERNAME);
+  
+  // Optional: Add artificial startup delay to seem more human
+  await new Promise(resolve => setTimeout(resolve, 2000));
+  
+  await ig.account.login(IG_USERNAME, IG_PASSWORD);
+  console.log("✅ Successfully logged in!");
+
+  console.log("📤 Uploading photo...");
+  const publishResult = await ig.publish.photo({
+    file: imageBuffer,
+    caption: caption,
   });
 
-  if (response.data && response.data.data && response.data.data.url) {
-    const url = response.data.data.url;
-    console.log(`✅ Uploaded to: ${url}`);
-    return url;
-  }
-  throw new Error("Failed to upload to ImgBB");
-}
-
-// ==========================================
-// 4. MAKE.COM WEBHOOK (Bypasses Meta Developer)
-// ==========================================
-async function sendToMakeWebhook(imageUrl, caption) {
-  console.log("📱 Sending to Make.com Webhook for Publishing...");
-  
-  const response = await axios.post(MAKE_WEBHOOK_URL, {
-    imageUrl: imageUrl,
-    caption: caption
-  });
-
-  console.log(`🎉 Successfully sent to Make! Response: ${response.statusText}`);
-  return response.data;
+  console.log(`🎉 Successfully published! Post ID: ${publishResult.media.id}`);
+  return publishResult;
 }
 
 // ==========================================
@@ -223,8 +212,8 @@ async function sendToMakeWebhook(imageUrl, caption) {
 // ==========================================
 async function main() {
   try {
-    if (!GEMINI_API_KEY || !IMGBB_API_KEY || !MAKE_WEBHOOK_URL) {
-      throw new Error("Missing required environment variables (GEMINI, IMGBB, or MAKE_WEBHOOK). Check GitHub Secrets.");
+    if (!GEMINI_API_KEY || !IG_USERNAME || !IG_PASSWORD) {
+      throw new Error("Missing required environment variables. Check your GitHub Secrets.");
     }
     
     // 1. Generate Quote
@@ -233,12 +222,12 @@ async function main() {
     // 2. Render Image
     const imageBuffer = await generateImage(quote);
     
-    // 3. Upload to ImgBB
-    const publicUrl = await uploadToImgBB(imageBuffer);
+    // Optional: Save locally for debugging in non-CI environment
+    // fs.writeFileSync('temp_post.png', imageBuffer);
     
-    // 4. Send to Make.com
+    // 3. Publish directly to Instagram (No hosting needed!)
     const caption = `🚩\n\n#redflags #dating #toxic #relatable`;
-    await sendToMakeWebhook(publicUrl, caption);
+    await postToInstagram(imageBuffer, caption);
     
     console.log("===========================");
     console.log("🥳 AUTOMATION COMPLETED!");
@@ -246,11 +235,12 @@ async function main() {
     
   } catch (error) {
     console.error("❌ ERROR EXECUTING AUTOMATION:", error.message);
-    if (error.response) {
-      console.error(JSON.stringify(error.response.data, null, 2));
+    if (error.response && error.response.body) {
+       console.error("Instagram API Error Details:", error.response.body);
     }
     process.exit(1);
   }
 }
 
 main();
+
