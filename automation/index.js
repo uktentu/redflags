@@ -3,7 +3,6 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { createCanvas, loadImage, registerFont } = require('canvas');
 const fs = require('fs');
 const path = require('path');
-const { IgApiClient } = require('instagram-private-api');
 
 // ==========================================
 // CONFIGURATION
