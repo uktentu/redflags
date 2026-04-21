@@ -11,8 +11,7 @@ const FormData = require('form-data');
 // ==========================================
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const IMGBB_API_KEY = process.env.IMGBB_API_KEY;
-const IG_ACCOUNT_ID = process.env.IG_ACCOUNT_ID;
-const IG_ACCESS_TOKEN = process.env.IG_ACCESS_TOKEN;
+const MAKE_WEBHOOK_URL = process.env.MAKE_WEBHOOK_URL;
 
 const DISPLAY_NAME = 'redflags.exe';
 const HANDLE = '@redflags.exe';
@@ -205,35 +204,18 @@ async function uploadToImgBB(buffer) {
 }
 
 // ==========================================
-// 4. INSTAGRAM PUBLISHING (Graph API)
+// 4. MAKE.COM WEBHOOK (Bypasses Meta Developer)
 // ==========================================
-async function postToInstagram(imageUrl, caption) {
-  console.log("📱 Publishing to Instagram...");
+async function sendToMakeWebhook(imageUrl, caption) {
+  console.log("📱 Sending to Make.com Webhook for Publishing...");
   
-  // Step 1: Create Media Container
-  const createContainerUrl = `https://graph.facebook.com/v19.0/${IG_ACCOUNT_ID}/media`;
-  const createResponse = await axios.post(createContainerUrl, null, {
-    params: {
-      image_url: imageUrl,
-      caption: caption,
-      access_token: IG_ACCESS_TOKEN
-    }
+  const response = await axios.post(MAKE_WEBHOOK_URL, {
+    imageUrl: imageUrl,
+    caption: caption
   });
 
-  const creationId = createResponse.data.id;
-  console.log(`✅ Created Media Container ID: ${creationId}`);
-
-  // Step 2: Publish Container
-  const publishUrl = `https://graph.facebook.com/v19.0/${IG_ACCOUNT_ID}/media_publish`;
-  const publishResponse = await axios.post(publishUrl, null, {
-    params: {
-      creation_id: creationId,
-      access_token: IG_ACCESS_TOKEN
-    }
-  });
-
-  console.log(`🎉 Successfully published! Post ID: ${publishResponse.data.id}`);
-  return publishResponse.data;
+  console.log(`🎉 Successfully sent to Make! Response: ${response.statusText}`);
+  return response.data;
 }
 
 // ==========================================
@@ -241,8 +223,8 @@ async function postToInstagram(imageUrl, caption) {
 // ==========================================
 async function main() {
   try {
-    if (!GEMINI_API_KEY || !IMGBB_API_KEY || !IG_ACCOUNT_ID || !IG_ACCESS_TOKEN) {
-      throw new Error("Missing required environment variables. Check .env file.");
+    if (!GEMINI_API_KEY || !IMGBB_API_KEY || !MAKE_WEBHOOK_URL) {
+      throw new Error("Missing required environment variables (GEMINI, IMGBB, or MAKE_WEBHOOK). Check GitHub Secrets.");
     }
     
     // 1. Generate Quote
@@ -251,15 +233,12 @@ async function main() {
     // 2. Render Image
     const imageBuffer = await generateImage(quote);
     
-    // Optional: Save locally for debugging
-    // fs.writeFileSync('temp_post.png', imageBuffer);
-    
     // 3. Upload to ImgBB
     const publicUrl = await uploadToImgBB(imageBuffer);
     
-    // 4. Publish to Instagram
+    // 4. Send to Make.com
     const caption = `🚩\n\n#redflags #dating #toxic #relatable`;
-    await postToInstagram(publicUrl, caption);
+    await sendToMakeWebhook(publicUrl, caption);
     
     console.log("===========================");
     console.log("🥳 AUTOMATION COMPLETED!");
