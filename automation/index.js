@@ -13,7 +13,7 @@ const IG_PASSWORD = process.env.IG_PASSWORD;
 
 const DISPLAY_NAME = 'redflags.exe';
 const HANDLE = '@redflags.exe';
-const VERTICAL_PERCENT = 0.65; // Matches 65% in UI default
+const VERTICAL_PERCENT = 0.4; // Matches 40% in UI default
 const W = 1080;
 const H = 1920;
 
@@ -205,36 +205,36 @@ async function generateImage(quoteText) {
 // ==========================================
 async function postToInstagramPuppeteer(imagePath, caption) {
   console.log("📱 Launching Invisible Browser (Puppeteer Chrome)...");
-  
+
   const puppeteer = require('puppeteer-extra');
   const StealthPlugin = require('puppeteer-extra-plugin-stealth');
   puppeteer.use(StealthPlugin());
 
-  const browser = await puppeteer.launch({ 
+  const browser = await puppeteer.launch({
     headless: "new", // Run in background completely invisible
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-notifications'] 
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-notifications']
   });
-  
+
   const page = await browser.newPage();
   await page.setViewport({ width: 1280, height: 800 });
-  
+
   try {
     console.log("⏳ Navigating to Instagram Login...");
     await page.goto('https://www.instagram.com/accounts/login/', { waitUntil: 'networkidle2' });
-    
+
     // Wait for username input box to appear
     await page.waitForSelector('input[name="username"]', { timeout: 15000 });
-    
+
     // Emulate human typing speed
     await page.type('input[name="username"]', IG_USERNAME, { delay: 60 });
     await page.type('input[name="password"]', IG_PASSWORD, { delay: 60 });
-    
+
     console.log("👆 Clicking Login...");
     await page.click('button[type="submit"]');
-    
+
     // Wait to clear the login wall
     await new Promise(resolve => setTimeout(resolve, 8000));
-    
+
     // Hard refresh back to homepage to bypass 
     // "Save Password" or "Turn on Notifications" modal popups
     console.log("🔄 Bypassing potential popups...");
@@ -243,63 +243,63 @@ async function postToInstagramPuppeteer(imagePath, caption) {
 
     // Click "Create" (The plus button)
     console.log("➕ Clicking Create Post...");
-    
+
     // Using evaluate for robust text-based element targeting (bypasses random CSS classes)
     const createClicked = await page.evaluate(() => {
-        const spans = Array.from(document.querySelectorAll('span'));
-        const createSpan = spans.find(el => el.innerText === 'Create');
-        if (createSpan) {
-            createSpan.click();
-            return true;
-        }
-        return false;
+      const spans = Array.from(document.querySelectorAll('span'));
+      const createSpan = spans.find(el => el.innerText === 'Create');
+      if (createSpan) {
+        createSpan.click();
+        return true;
+      }
+      return false;
     });
-    
+
     if (!createClicked) {
       // Fallback to searching for the SVG icon
       const svgCreate = await page.$('svg[aria-label="New post"]');
       if (svgCreate) await svgCreate.click();
     }
-    
+
     await new Promise(resolve => setTimeout(resolve, 3000));
-    
+
     console.log("📤 Pushing image into browser...");
     const fileInput = await page.$('input[type="file"]');
     if (!fileInput) throw new Error("Could not find file upload box in Instagram GUI.");
     await fileInput.uploadFile(path.resolve(__dirname, imagePath));
-    
+
     // Helper to click localized text buttons (Next / Share)
     const clickButtonText = async (text) => {
-        await new Promise(resolve => setTimeout(resolve, 3000));
-        await page.evaluate((targetText) => {
-            const btns = Array.from(document.querySelectorAll('div[role="button"]'));
-            const target = btns.find(b => b.innerText && b.innerText.includes(targetText));
-            if (target) target.click();
-        }, text);
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      await page.evaluate((targetText) => {
+        const btns = Array.from(document.querySelectorAll('div[role="button"]'));
+        const target = btns.find(b => b.innerText && b.innerText.includes(targetText));
+        if (target) target.click();
+      }, text);
     };
 
     console.log("⏳ Bypassing crop screen...");
     await clickButtonText("Next");
-    
+
     console.log("⏳ Bypassing filter screen...");
     await clickButtonText("Next");
-    
+
     console.log("📝 Typing caption...");
     await new Promise(resolve => setTimeout(resolve, 2000));
     const captionBox = await page.$('div[aria-label="Write a caption..."]');
     if (captionBox) {
-        await captionBox.type(caption, { delay: 20 });
+      await captionBox.type(caption, { delay: 20 });
     } else {
-        console.warn("Could not find caption box, posting without caption.");
+      console.warn("Could not find caption box, posting without caption.");
     }
-    
+
     console.log("🚀 Pressing Share!");
     await clickButtonText("Share");
-    
+
     // Add extra time to ensure upload finishes fully before Chrome shuts down
     console.log("⏳ Waiting 15 seconds for upload animation to finish...");
     await new Promise(resolve => setTimeout(resolve, 15000));
-    
+
     console.log("🎉 Successfully published via Automaton Chromium!");
 
   } catch (error) {
